@@ -1,0 +1,150 @@
+﻿<#@ template language="C#" debug="false" hostspecific="true"#>
+<#@ include file="..\..\..\CodeGenerator\GeneratorHelper.ttinclude"#>
+<#@ output extension=".ts"#>
+<#
+
+const string inputFile = @"D:\\MyWorx\\Projects\\Inish\\Inish\\Inish.Data.Core\\InishCore.edmx";
+var textTransform = DynamicTextTransformation.Create(this);
+var code = new CodeGenerationTools(this);
+var ef = new MetadataTools(this);
+var typeMapper = new TypeMapper(code, ef, textTransform.Errors);
+var loader = new EdmMetadataLoader(textTransform.Host, textTransform.Errors);
+var itemCollection = loader.CreateEdmItemCollection(inputFile);
+var	fileManager = EntityFrameworkTemplateFileManager.Create(this);
+
+var modelNamespace = loader.GetModelNamespace(inputFile);
+var codeStringGenerator = new CodeStringGenerator(code, typeMapper, ef);
+
+var container = itemCollection.OfType<EntityContainer>().FirstOrDefault();
+
+if (container == null)
+{
+    return string.Empty;
+}
+#>
+
+<#
+foreach (var entity in typeMapper.GetItemsToGenerate<EntityType>(itemCollection))
+{
+	var simpleProperties = typeMapper.GetSimpleProperties(entity);
+	var collectionNavigationProperties = typeMapper.GetCollectionNavigationProperties(entity);
+	var navigationProperties = typeMapper.GetNavigationProperties(entity);
+#>
+export interface <#=InterfaceName(entity.Name)#>
+{
+<#
+foreach (var edmProperty in simpleProperties)
+{
+if(edmProperty.Documentation == null || !edmProperty.Documentation.LongDescription.Contains("Hide"))
+		{
+#>
+	<#=propertyName(edmProperty.Name)#>?:<#=GetTSType(typeMapper.GetTypeName(edmProperty.TypeUsage))#>,
+<#
+}}#>
+
+<#
+foreach (var edmProperty in navigationProperties)
+{
+if(edmProperty.Documentation == null || !edmProperty.Documentation.LongDescription.Contains("Hide"))
+		{
+#>
+	<#=propertyName(edmProperty.Name)#>?:<#=GetTSType(typeMapper.GetTypeName(edmProperty.TypeUsage))#>,
+<#
+}}#>
+}
+<#
+}
+#>
+<#+
+public string GetTSType(string Type)
+{
+	switch(Type)
+	{
+		case "string":
+			return "string";
+		case "int":
+			return "number";
+		case "Nullable<double>":
+			return "number";
+		case"Nullable<System.DateTime>":
+			return "string";
+		case "Nullable<int>":
+			return "number";
+		case "Nullable<decimal>":
+			return "number";
+		case "Nullable<bool>":
+			return "boolean";
+		case "System.DateTime":
+			return "string";
+		case "decimal":
+			return "number";
+		case "long":
+			return "number";
+	}
+	if(Type.StartsWith("ICollection<"))
+	{
+		return "i"+Type.Substring(Type.IndexOf('<')+1,Type.LastIndexOf('>')-Type.IndexOf('<')-1)+"[]";
+	}
+	return "i"+Type;
+}
+private string InterfaceName(string name)
+        {
+            return "i" + name;
+        }
+
+        private string propertyName(string name)
+        {
+            string output = "";
+            int i = 0;
+			bool previousIsUpper = false;
+            foreach (char c in name)
+            {
+                if(i==0)
+                {
+                    output = Char.ToLower(c).ToString();
+                }
+                else
+                {
+                    if(Char.IsUpper(c))
+                    {
+						if(previousIsUpper)
+						{
+							previousIsUpper = true;
+							output += Char.ToLower(c).ToString();
+						}
+						else
+						{
+							previousIsUpper = true;
+							output += "_" + Char.ToLower(c).ToString();
+						}
+                    }
+                    else
+                    {
+						previousIsUpper = false;
+                        output += c.ToString();
+                    }
+                }
+                i = 1;
+            }
+            return output;
+        }
+        private string apiClassName(string name)
+        {
+            string output = "";
+            int i = 0;
+            foreach (char c in name)
+            {
+                if (i == 0)
+                {
+                    output = Char.ToLower(c).ToString();
+                }
+                else
+                {
+                    output += c.ToString();
+                }
+                i = 1;
+            }
+            return output;
+        }
+#>
+
